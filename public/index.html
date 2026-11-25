@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gamified Farming Dashboard</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+<!-- Sidebar Navigation -->
+<aside class="sidebar">
+  <div class="sidebar-logo">🌱 Gamified Farming</div>
+  <nav class="sidebar-nav">
+    <button onclick="scrollToSection('stats')">Stats</button>
+    <button onclick="scrollToSection('charts')">Charts</button>
+    <button onclick="scrollToSection('leaderboard')">Leaderboard</button>
+    <button id="logoutBtn">Logout</button>
+  </nav>
+</aside>
+
+<!-- Main Content -->
+<div class="main-content">
+  <!-- Page Title -->
+  <section class="page-title">
+    <h1>Welcome to Your Sustainable Farming Dashboard</h1>
+    <p>Track your missions, achievements, and progress in sustainable agriculture!</p>
+  </section>
+
+  <!-- Stats Section -->
+  <section id="stats" class="stats">
+    <div class="card">
+      <h3>Total Users</h3>
+      <p id="totalUsers">0</p>
+    </div>
+    <div class="card">
+      <h3>Total Missions</h3>
+      <p id="totalMissions">0</p>
+    </div>
+    <div class="card">
+      <h3>Completed Missions</h3>
+      <p id="completedMissions">0</p>
+    </div>
+  </section>
+
+  <!-- Charts Section -->
+  <section id="charts" class="charts">
+    <h2>Mission Completion Overview</h2>
+    <canvas id="missionsChart"></canvas>
+  </section>
+
+<!-- Leaderboard Section -->
+<section id="leaderboard" class="leaderboard">
+  <h2>Leaderboard</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Username</th>
+        <th>Completed Missions</th>
+        <th>Score</th>
+      </tr>
+    </thead>
+    <tbody id="leaderboardBody">
+      <!-- Dynamic content -->
+    </tbody>
+  </table>
+</section>
+
+
+<script>
+  // Scroll to section
+  function scrollToSection(id) {
+    document.getElementById(id).scrollIntoView({ behavior: 'smooth' });
+  }
+
+  // Logout functionality
+  document.getElementById("logoutBtn").addEventListener("click", async () => {
+    await fetch("/api/logout");
+    window.location.href = "/login.html";
+  });
+
+  // Fetch dashboard stats
+  async function fetchStats() {
+    const usersRes = await fetch("/api/users");
+    const users = await usersRes.json();
+    document.getElementById("totalUsers").textContent = users.length;
+
+    const missionsRes = await fetch("/api/missions");
+    const missions = await missionsRes.json();
+    document.getElementById("totalMissions").textContent = missions.length;
+
+    const progressRes = await fetch("/api/progress");
+    const progress = await progressRes.json();
+    const completedCount = progress.filter(p => p.status === "completed").length;
+    document.getElementById("completedMissions").textContent = completedCount;
+
+    renderLeaderboard(users, progress, missions);
+    renderMissionsChart(missions, progress);
+  }
+
+  // Render missions chart
+  function renderMissionsChart(missions, progress) {
+    const ctx = document.getElementById('missionsChart').getContext('2d');
+    const labels = missions.map(m => m.title);
+    const completedCounts = missions.map(m => progress.filter(p => p.mission_id === m.id && p.status === "completed").length);
+
+    new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Completed Missions',
+          data: completedCounts,
+          backgroundColor: 'rgba(75, 192, 192, 0.6)',
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { display: false },
+          title: { display: true, text: 'Mission Completion Overview' }
+        }
+      }
+    });
+  }
+  function renderLeaderboard(users, progress, missions) {
+  const tbody = document.getElementById("leaderboardBody");
+  tbody.innerHTML = "";
+
+  users.forEach(user => {
+    const userProgress = progress.filter(p => p.user_id === user.id && p.status === "completed");
+    const score = userProgress.reduce((sum, p) => sum + (p.score || 0), 0);
+
+    const row = document.createElement("tr");
+
+    // Clickable username
+    const usernameCell = document.createElement("td");
+    usernameCell.textContent = user.name;
+    usernameCell.style.color = "#4caf50";
+    usernameCell.style.cursor = "pointer";
+    usernameCell.addEventListener("click", () => showUserDetails(user, userProgress, score));
+
+    const completedCell = document.createElement("td");
+    completedCell.textContent = userProgress.length;
+
+    const scoreCell = document.createElement("td");
+    scoreCell.textContent = score;
+
+    row.appendChild(usernameCell);
+    row.appendChild(completedCell);
+    row.appendChild(scoreCell);
+
+    tbody.appendChild(row);
+  });
+}
+
+// Show modal with user details
+function showUserDetails(user, userProgress, score) {
+  document.getElementById("modalUsername").textContent = user.name;
+  document.getElementById("modalEmail").textContent = user.email || "Not Provided";
+  document.getElementById("modalCompleted").textContent = userProgress.length;
+  document.getElementById("modalScore").textContent = score;
+
+  const modal = document.getElementById("userModal");
+  modal.style.display = "block";
+
+  // Close button
+  document.querySelector(".closeBtn").onclick = () => modal.style.display = "none";
+
+  // Close when clicking outside modal
+  window.onclick = (event) => {
+    if (event.target == modal) modal.style.display = "none";
+  };
+}
+
+// Initialize dashboard
+fetchStats();
+</script>
+
+</body>
+</html>
